@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+from google import genai
 
 # -------------------------------------------------------------------
 # 1. PAGE CONFIGURATION & THEME
@@ -27,6 +28,43 @@ st.markdown("""
 # -------------------------------------------------------------------
 # 2. CACHED DATA INGESTION & FEATURE ENGINEERING
 # -------------------------------------------------------------------
+@st.cache_data(ttl=3600)
+def get_ai_insights(df):
+
+    client = genai.Client(
+        api_key="key"  # safer than hardcoding
+    )
+
+    sample_data = df[[
+        "Customer_ID",
+        "Churn_Probability",
+        "Predicted_Revenue",
+        "Cluster_Name"
+    ]].head(100)
+
+    prompt = f"""
+    Analyze the SaaS customer dataset.
+
+    Dataset Sample:
+    {sample_data.to_csv(index=False)}
+
+    Answer:
+
+    1. What churn trends do you observe?
+    2. How does revenue relate to clusters?
+    3. What customer segmentation strategy do you recommend?
+    4. What data quality concerns do you notice?
+
+    Give concise business recommendations.
+    """
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
+    return response.text
+
 @st.cache_data
 def load_and_process_data():
     # Load your unified intelligence matrix
@@ -161,10 +199,11 @@ st.markdown("<br>", unsafe_allow_html=True)
 # -------------------------------------------------------------------
 # 5. CORE ANALYTICAL GRAPHICS TABS
 # -------------------------------------------------------------------
-tab1, tab2, tab3 = st.tabs([
-    "🎯 Risk vs Opportunity Mapping", 
-    "📊 Segment Breakdown", 
-    "🔍 Granular Account Explorer"
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🎯 Risk vs Opportunity Mapping",
+    "📊 Segment Breakdown",
+    "🔍 Granular Account Explorer",
+    "🤖 AI Business Insights"
 ])
 
 with tab1:
@@ -257,3 +296,117 @@ with tab3:
         use_container_width=True,
         hide_index=True
     )
+
+with tab4:
+    st.subheader("📈 Churn Risk Distribution")
+
+    fig = px.histogram(
+        filtered_df,
+        x="churn_risk_score",
+        nbins=20,
+        color="action_segment",
+        color_discrete_map={
+            "PROTECT":"#dc3545",
+            "GROW":"#28a745",
+            "NURTURE":"#ffc107",
+            "MONITOR":"#17a2b8"
+        }
+    )
+
+    st.plotly_chart(fig, use_container_width=True)  
+
+    st.subheader("🚨 Average Churn Risk by Cluster")
+
+    cluster_risk = (
+        filtered_df
+        .groupby("Cluster_Name")["churn_risk_score"]
+        .mean()
+        .reset_index()
+    )
+
+    fig = px.bar(
+        cluster_risk,
+        x="Cluster_Name",
+        y="churn_risk_score",
+        color="churn_risk_score",
+        color_continuous_scale="Reds"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("💰 Revenue vs Churn Risk")
+
+    fig = px.scatter(
+        filtered_df,
+        x="Predicted_Revenue",
+        y="churn_risk_score",
+        color="Cluster_Name",
+        size="Predicted_Revenue",
+        hover_name="Customer_ID"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("🏆 Revenue Contribution by Cluster")
+
+    cluster_rev = (
+        filtered_df
+        .groupby("Cluster_Name")["Predicted_Revenue"]
+        .sum()
+        .reset_index()
+    )
+
+    fig = px.pie(
+        cluster_rev,
+        names="Cluster_Name",
+        values="Predicted_Revenue",
+        hole=0.5
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("🔥 Top 20 Churn-Risk Customers")
+
+    top20 = filtered_df.nlargest(
+        20,
+        "churn_risk_score"
+    )[[
+        "Customer_ID",
+        "Cluster_Name",
+        "churn_risk_score",
+        "Predicted_Revenue"
+    ]]
+
+    st.dataframe(top20, use_container_width=True)
+
+    st.subheader("🎯 Strategic Portfolio Matrix")
+
+    fig = px.scatter(
+        filtered_df,
+        x="churn_risk_score",
+        y="revenue_opportunity_score",
+        color="action_segment",
+        size="Predicted_Revenue",
+        hover_name="Customer_ID"
+    )
+
+    fig.add_vline(x=50, line_dash="dash", line_color="red")
+    fig.add_hline(y=40, line_dash="dash", line_color="green")
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("🤖 Gemini Strategic Intelligence")
+
+    if st.button("Generate AI Insights"):
+
+        with st.spinner("Analyzing customer portfolio..."):
+
+            try:
+                insights = get_ai_insights(filtered_df)
+
+                st.success("Analysis Complete")
+
+                st.markdown(insights)
+
+            except Exception as e:
+                st.error(f"Gemini Error: {e}")

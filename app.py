@@ -4,6 +4,13 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from google import genai
+from google import genai
+import os
+import json
+
+client = genai.Client(
+    api_key="Gen_Api_Key_Here"  # safer than hardcoding
+)
 
 # -------------------------------------------------------------------
 # 1. PAGE CONFIGURATION & THEME
@@ -32,7 +39,7 @@ st.markdown("""
 def get_ai_insights(df):
 
     client = genai.Client(
-        api_key="key"  # safer than hardcoding
+        api_key="Gen_Api_Key_Here"  # safer than hardcoding
     )
 
     sample_data = df[[
@@ -56,6 +63,38 @@ def get_ai_insights(df):
     4. What data quality concerns do you notice?
 
     Give concise business recommendations.
+    """
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+
+    return response.text
+# -----------------------------
+# Generate Business Report
+# -----------------------------
+@st.cache_data
+def generate_report(summary):
+    prompt = f"""
+    You are a Chief Business Intelligence Officer.
+
+    Analyze the following Customer Intelligence Summary:
+
+    {json.dumps(summary, indent=2)}
+
+    Provide:
+
+    1. Executive Summary
+    2. Customer Churn Analysis
+    3. Revenue Forecast Analysis
+    4. Cluster Performance Analysis
+    5. Retention Strategy Recommendations
+    6. Revenue Growth Opportunities
+    7. Business Risks
+    8. Action Plan for Management
+
+    Provide professional business insights.
     """
 
     response = client.models.generate_content(
@@ -298,115 +337,172 @@ with tab3:
     )
 
 with tab4:
-    st.subheader("📈 Churn Risk Distribution")
+    col1,col2=st.columns(2)
+    with col1:
+        st.subheader("📈 Churn Risk Distribution")
 
-    fig = px.histogram(
-        filtered_df,
-        x="churn_risk_score",
-        nbins=20,
-        color="action_segment",
-        color_discrete_map={
-            "PROTECT":"#dc3545",
-            "GROW":"#28a745",
-            "NURTURE":"#ffc107",
-            "MONITOR":"#17a2b8"
-        }
-    )
+        fig = px.histogram(
+            filtered_df,
+            x="churn_risk_score",
+            nbins=20,
+            color="action_segment",
+            color_discrete_map={
+                "PROTECT":"#dc3545",
+                "GROW":"#28a745",
+                "NURTURE":"#ffc107",
+                "MONITOR":"#17a2b8"
+            }
+        )
 
-    st.plotly_chart(fig, use_container_width=True)  
+        st.plotly_chart(fig, use_container_width=True)  
+    with col2:
+        st.subheader("🚨 Average Churn Risk by Cluster")
 
-    st.subheader("🚨 Average Churn Risk by Cluster")
+        cluster_risk = (
+            filtered_df
+            .groupby("Cluster_Name")["churn_risk_score"]
+            .mean()
+            .reset_index()
+        )
 
-    cluster_risk = (
-        filtered_df
-        .groupby("Cluster_Name")["churn_risk_score"]
-        .mean()
-        .reset_index()
-    )
+        fig = px.bar(
+            cluster_risk,
+            x="Cluster_Name",
+            y="churn_risk_score",
+            color="churn_risk_score",
+            color_continuous_scale="Reds"
+        )
 
-    fig = px.bar(
-        cluster_risk,
-        x="Cluster_Name",
-        y="churn_risk_score",
-        color="churn_risk_score",
-        color_continuous_scale="Reds"
-    )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    
+    col1,col2=st.columns(2)
+    with col1:
+        st.subheader("💰 Revenue vs Churn Risk")
 
-    st.plotly_chart(fig, use_container_width=True)
+        fig = px.scatter(
+            filtered_df,
+            x="Predicted_Revenue",
+            y="churn_risk_score",
+            color="Cluster_Name",
+            size="Predicted_Revenue",
+            hover_name="Customer_ID"
+        )
 
-    st.subheader("💰 Revenue vs Churn Risk")
+        st.plotly_chart(fig, use_container_width=True)
+    with col2:
+        st.subheader("🏆 Revenue Contribution by Cluster")
 
-    fig = px.scatter(
-        filtered_df,
-        x="Predicted_Revenue",
-        y="churn_risk_score",
-        color="Cluster_Name",
-        size="Predicted_Revenue",
-        hover_name="Customer_ID"
-    )
+        cluster_rev = (
+            filtered_df
+            .groupby("Cluster_Name")["Predicted_Revenue"]
+            .sum()
+            .reset_index()
+        )
 
-    st.plotly_chart(fig, use_container_width=True)
+        fig = px.pie(
+            cluster_rev,
+            names="Cluster_Name",
+            values="Predicted_Revenue",
+            hole=0.5
+        )
 
-    st.subheader("🏆 Revenue Contribution by Cluster")
+        st.plotly_chart(fig, use_container_width=True)
+    
+    col1,col2=st.columns(2)
+    with col1:
+        st.subheader("🔥 Top 20 Churn-Risk Customers")
 
-    cluster_rev = (
-        filtered_df
-        .groupby("Cluster_Name")["Predicted_Revenue"]
-        .sum()
-        .reset_index()
-    )
+        top20 = filtered_df.nlargest(
+            20,
+            "churn_risk_score"
+        )[[
+            "Customer_ID",
+            "Cluster_Name",
+            "churn_risk_score",
+            "Predicted_Revenue"
+        ]]
 
-    fig = px.pie(
-        cluster_rev,
-        names="Cluster_Name",
-        values="Predicted_Revenue",
-        hole=0.5
-    )
+        st.dataframe(top20, use_container_width=True)
+    with col2:
+        st.subheader("🎯 Strategic Portfolio Matrix")
 
-    st.plotly_chart(fig, use_container_width=True)
+        fig = px.scatter(
+            filtered_df,
+            x="churn_risk_score",
+            y="revenue_opportunity_score",
+            color="action_segment",
+            size="Predicted_Revenue",
+            hover_name="Customer_ID"
+        )
 
-    st.subheader("🔥 Top 20 Churn-Risk Customers")
+        fig.add_vline(x=50, line_dash="dash", line_color="red")
+        fig.add_hline(y=40, line_dash="dash", line_color="green")
 
-    top20 = filtered_df.nlargest(
-        20,
-        "churn_risk_score"
-    )[[
-        "Customer_ID",
-        "Cluster_Name",
-        "churn_risk_score",
-        "Predicted_Revenue"
-    ]]
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.dataframe(top20, use_container_width=True)
+    # st.subheader("🤖 Gemini Strategic Intelligence")
 
-    st.subheader("🎯 Strategic Portfolio Matrix")
+    # if st.button("Generate AI Insights"):
 
-    fig = px.scatter(
-        filtered_df,
-        x="churn_risk_score",
-        y="revenue_opportunity_score",
-        color="action_segment",
-        size="Predicted_Revenue",
-        hover_name="Customer_ID"
-    )
+    #     with st.spinner("Analyzing customer portfolio..."):
 
-    fig.add_vline(x=50, line_dash="dash", line_color="red")
-    fig.add_hline(y=40, line_dash="dash", line_color="green")
+    #         try:
+    #             insights = get_ai_insights(filtered_df)
 
-    st.plotly_chart(fig, use_container_width=True)
+    #             st.success("Analysis Complete")
 
-    st.subheader("🤖 Gemini Strategic Intelligence")
+    #             st.markdown(insights)
 
-    if st.button("Generate AI Insights"):
+    #         except Exception as e:
+    #             st.error(f"Gemini Error: {e}")
 
-        with st.spinner("Analyzing customer portfolio..."):
 
-            try:
-                insights = get_ai_insights(filtered_df)
+    st.title("📊 Customer Intelligence Dashboard")
 
-                st.success("Analysis Complete")
+    if st.button("Generate Executive Report"):
 
-                st.markdown(insights)
+        with st.spinner("Generating Business Insights..."):
+            with open("business_summary.json", "r") as f:
+                summary = json.load(f)
+            report = generate_report(summary)
 
-            except Exception as e:
-                st.error(f"Gemini Error: {e}")
+        # Create 5 Tabs
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "Executive Summary",
+            "Churn Analysis",
+            "Revenue Analysis",
+            "Recommendations",
+            "Full Report"
+        ])
+
+        with tab1:
+            st.subheader("Executive Summary")
+            st.markdown(report)
+
+        with tab2:
+            st.subheader("Customer Churn Analysis")
+            st.markdown(report)
+
+        with tab3:
+            st.subheader("Revenue Forecast Analysis")
+            st.markdown(report)
+
+        with tab4:
+            st.subheader("Business Recommendations")
+            st.markdown(report)
+
+        with tab5:
+            st.subheader("Complete Business Intelligence Report")
+            st.text_area(
+                "Generated Report",
+                report,
+                height=600
+            )
+
+            st.download_button(
+                "Download Report",
+                report,
+                file_name="business_report.txt",
+                mime="text/plain"
+            )

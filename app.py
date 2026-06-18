@@ -18,7 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 client = genai.Client(
-    api_key="Gen_Api_Key"
+    api_key="AI Key"
 )
 
 # -------------------------------------------------------------------
@@ -364,23 +364,95 @@ with tab2:
         st.dataframe(forecast_df)
 
         # Plot
-        fig, ax = plt.subplots(figsize=(10,5))
+        # fig, ax = plt.subplots(figsize=(10,5))
 
-        ax.plot(
-            forecast_df[forecast_type],
-            forecast_df["Forecast Revenue"],
-            marker="o"
+        # ax.plot(
+        #     forecast_df[forecast_type],
+        #     forecast_df["Forecast Revenue"],
+        #     marker="o"
+        # )
+
+        # ax.set_title(
+        #     f"Revenue Forecast for Next {periods} {forecast_type}"
+        # )
+
+        # ax.set_xlabel(forecast_type)
+        # ax.set_ylabel("Revenue")
+
+        # st.pyplot(fig)
+        col1, col2 = st.columns(2)
+        with col1:
+            fig1 = px.line(
+                forecast_df,
+                x=forecast_type,
+                y="Forecast Revenue",
+                markers=True,
+                color_discrete_sequence=["#00D4FF"]
+            )
+
+            fig1.update_traces(
+                line=dict(width=4),
+                marker=dict(size=10)
+            )
+
+            fig1.update_layout(
+                title="Revenue Forecast",
+                template="plotly_dark",
+                height=500
+            )
+
+            st.plotly_chart(fig1, use_container_width=True)
+
+        with col2:
+            fig2 = px.scatter(
+                forecast_df,
+                x=forecast_type,
+                y="Forecast Revenue",
+                size="Forecast Revenue",
+                color="Forecast Revenue",
+                color_continuous_scale="Viridis",
+                title="Revenue Distribution"
+            )
+
+            fig2.update_layout(
+                template="plotly_dark",
+                height=500
+            )
+
+            st.plotly_chart(fig2, use_container_width=True)
+        
+      
+        fig3 = px.bar(
+            forecast_df,
+            x=forecast_type,
+            y="Forecast Revenue",
+            color="Forecast Revenue",
+            color_continuous_scale="Turbo",
+            text_auto=".2s",
+            title="Revenue Growth Comparison"
         )
 
-        ax.set_title(
-            f"Revenue Forecast for Next {periods} {forecast_type}"
+        fig3.update_layout(
+            template="plotly_dark",
+            height=450
         )
 
-        ax.set_xlabel(forecast_type)
-        ax.set_ylabel("Revenue")
+        st.plotly_chart(fig3, use_container_width=True)
+        
+        fig4 = px.area(
+                forecast_df,
+                x=forecast_type,
+                y="Forecast Revenue",
+                color_discrete_sequence=["#EF553B"]
+            )
 
-        st.pyplot(fig)
+        fig4.update_layout(
+                title="Revenue Forecast Area View",
+                template="plotly_white",
+                height=450
+            )
 
+        st.plotly_chart(fig4, use_container_width=True)
         # Download
         csv = forecast_df.to_csv(index=False)
 
@@ -481,11 +553,90 @@ with tab3:
             # ------------------------------------
             # Cluster Distribution
             # ------------------------------------
+            # st.subheader("Cluster Distribution")
+
+            # chart_df = result_df["Cluster_Name"].value_counts()
+
+            # st.bar_chart(chart_df)
+
             st.subheader("Cluster Distribution")
 
-            chart_df = result_df["Cluster_Name"].value_counts()
+            col1,col2=st.columns(2)
 
-            st.bar_chart(chart_df)
+            with col1:
+                cluster_counts = (
+                    result_df["Cluster_Name"]
+                    .value_counts()
+                    .reset_index()
+                )
+
+                cluster_counts.columns = ["Cluster", "Count"]
+
+                fig = px.bar(
+                    cluster_counts,
+                    x="Cluster",
+                    y="Count",
+                    color="Count",
+                    color_continuous_scale="Viridis",  # Beautiful gradient colors
+                    text="Count"
+                )
+
+                fig.update_traces(textposition="outside")
+
+                fig.update_layout(
+                    title="Customer Segmentation Distribution",
+                    template="plotly_dark",  # Try plotly_white, plotly_dark
+                    height=550
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            cluster_counts = (
+                result_df["Cluster_Name"]
+                .value_counts()
+                .reset_index()
+            )
+
+            cluster_counts.columns = ["Cluster", "Count"]
+
+            fig = px.pie(
+                cluster_counts,
+                names="Cluster",
+                values="Count",
+                hole=0.5,   # Donut effect
+                title="Cluster Distribution"
+            )
+
+            fig.update_traces(textinfo="percent+label")
+
+            with col2:
+                st.plotly_chart(fig, use_container_width=True)
+
+            cluster_counts = (
+    result_df["Cluster_Name"]
+    .value_counts()
+    .reset_index()
+)
+
+            cluster_counts.columns = ["Cluster", "Count"]
+
+            fig = px.bar(
+                cluster_counts,
+                x="Cluster",
+                y="Count",
+                color="Count",
+                color_continuous_scale="Viridis",  # Beautiful gradient colors
+                text="Count"
+            )
+
+            fig.update_traces(textposition="outside")
+
+            fig.update_layout(
+                title="Customer Segmentation Distribution",
+                template="plotly_dark",  # Try plotly_white, plotly_dark
+                height=550
+            )
+
+            # st.plotly_chart(fig, use_container_width=True)
 
             # ------------------------------------
             # Download Results
